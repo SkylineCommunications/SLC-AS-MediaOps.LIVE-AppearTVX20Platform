@@ -110,7 +110,10 @@ namespace AppearTVX20PlatformConnectionHandler
                 var elementId = group.Key.Value;
                 var element = engine.FindElement(elementId.AgentId, elementId.ElementId);
 
-                var appearElement = new AppearXElement(Engine.SLNetRaw, element.DmaId, element.ElementId);
+                var appearElement = new AppearXElement(Engine.SLNetRaw, element.DmaId, element.ElementId) 
+                {
+                    Timeout = TimeSpan.FromSeconds(30),
+                };
 
                 foreach (var connection in group)
                 {
@@ -142,7 +145,7 @@ namespace AppearTVX20PlatformConnectionHandler
                     var getItemsResponse = appearElement.SendMessage(getItemsRequest);
                     if (!getItemsResponse.Success)
                     {
-                        engine.Log($"Retrieving IpGatewayOutputs from appear element '{elementId}' failed.");
+                        engine.Log($"Retrieving IpGatewayOutputs from appear element '{elementId}' failed: {getItemsResponse.ResponseMessage}.");
                         continue;
                     }
 
@@ -152,8 +155,6 @@ namespace AppearTVX20PlatformConnectionHandler
                         continue;
                     }
 
-                    engine.Log("RESPONSE: " + getItemsResponse.ResponseMessage);
-
                     // select the item to edit
                     var apiResponse = SecureNewtonsoftDeserialization.DeserializeObject<GetOutputs.Response>(getItemsResponse.ResponseMessage)?.Result.Data;
                     var itemToEdit = apiResponse?.Find(x => x.Key == outputKey);
@@ -161,6 +162,26 @@ namespace AppearTVX20PlatformConnectionHandler
                     {
                         engine.Log($"No IpGatewayOutput with key '{outputKey}' found in appear element '{elementId}'.");
                         continue;
+                    }
+
+                    // update service to be received by output
+
+
+                    var request = new GenericRequest
+                    {
+                        Slot = slotId,
+                        RequestType = GenericRequest.ReqType.IpGatewayOutputs, // providing the type will automatically refresh the linked tables
+                        RequestVerb = GenericRequest.ReqVerb.Post, // Post to update the item
+                        RequestData = SetItemsRequestSerialized(slotId, itemToEdit),
+                    };
+                    var response = appearElement.SendMessage(request);
+                    if (response.Success)
+                    {
+                        
+                    }
+                    else
+                    {
+                        engine.Log($"Updating IpGatewayOutput with key '{outputKey}' failed: {response.ResponseMessage}.");
                     }
                 }
             }
