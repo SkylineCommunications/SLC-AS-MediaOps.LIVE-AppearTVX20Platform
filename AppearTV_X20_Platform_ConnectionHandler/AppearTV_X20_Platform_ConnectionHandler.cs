@@ -11,12 +11,11 @@ namespace AppearTVX20PlatformConnectionHandler
     using Skyline.DataMiner.Core.DataMinerSystem.Automation;
     using Skyline.DataMiner.Core.DataMinerSystem.Common;
     using Skyline.DataMiner.DataSources.Appear.X.Schema;
-    using Skyline.DataMiner.DataSources.Appear.X.Schema.IpGateway.V1_31.Input.Command;
     using Skyline.DataMiner.DataSources.Appear.X.Schema.IpGateway.V1_31.Output.Command;
-    using Skyline.DataMiner.DataSources.Appear.X.Schema.Types.Input.V1_24.Type;
+    using Skyline.DataMiner.DataSources.Appear.X.Schema.Types.ComponentMapping.V1_2.Type;
+    using Skyline.DataMiner.DataSources.Appear.X.Schema.Types.GenericDescriptor.V1_1.Type;
     using Skyline.DataMiner.DataSources.Appear.X.Schema.Types.Output.V1_29.Type;
-    using Skyline.DataMiner.DataSources.Appear.X.Schema.Types.Services.V1_4.Type;
-    using Skyline.DataMiner.Net.Messages;
+    using Skyline.DataMiner.DataSources.Appear.X.Schema.Types.OutputMapping.V1_2.Type;
     using Skyline.DataMiner.Solutions.MediaOps.Live.API.Enums;
     using Skyline.DataMiner.Solutions.MediaOps.Live.Automation.Mediation.ConnectionHandlers;
     using Skyline.DataMiner.Solutions.MediaOps.Live.Mediation.ConnectionHandlers.Data;
@@ -170,7 +169,7 @@ namespace AppearTVX20PlatformConnectionHandler
 
                 foreach (var destination in group)
                 {
-                   
+                    // TODO: retrieve output and either disable output or remove service
                 }
             }
         }
@@ -197,30 +196,6 @@ namespace AppearTVX20PlatformConnectionHandler
             }
 
             return true;
-        }
-
-        private static bool TryGetIpGatewayInput(AppearXElement element, int slotId, Guid key, out Map<Guid, Input> input)
-        {
-            input = null;
-
-            var request = new GenericRequest
-            {
-                Slot = slotId,
-                RequestType = GenericRequest.ReqType.IpGatewayInputs,
-                RequestVerb = GenericRequest.ReqVerb.Get,
-                RequestData = GetItemsRequestSerialized(slotId),
-            };
-
-            var response = element.SendMessage(request);
-            if (!response.Success)
-            {
-                return false;
-            }
-
-            var apiResponse = SecureNewtonsoftDeserialization.DeserializeObject<GetInputs.Response>(response.ResponseMessage)?.Result.Data;
-
-            input = apiResponse?.Find(x => x.Key == key);
-            return input != null;
         }
 
         private static bool TryGetSourceFlowId(IDmsElement element, Guid key, out Guid sourceFlowKey)
@@ -269,12 +244,45 @@ namespace AppearTVX20PlatformConnectionHandler
         {
             if (output.Value.OutputSettings.TsWhitelistMode?.DvbMode != null)
             {
-                if (!output.Value.OutputSettings.TsWhitelistMode.DvbMode.Source.Multiplex.Any(x => x.Service != null))
+                var firstSourceMultiplex = output.Value.OutputSettings.TsWhitelistMode.DvbMode.Source.Multiplex.FirstOrDefault(x => x.Service != null);
+                if (firstSourceMultiplex != null)
                 {
-                    throw new NotSupportedException($"Output {output.Value.Label} contains no existing services to replace!");
+                    firstSourceMultiplex.Service.Source = sourceFlowId;
                 }
-
-                output.Value.OutputSettings.TsWhitelistMode.DvbMode.Source.Multiplex.First(x => x.Service != null).Service.Source = sourceFlowId;
+                else
+                {
+                    output.Value.OutputSettings.TsWhitelistMode.DvbMode.Source.Multiplex.Add(
+                        new DvbMultiplexSource(
+                            new DvbServiceSource
+                            {
+                                Source = sourceFlowId,
+                                Priority = 100,
+                                Settings = new DvbMultiplexServiceSettings
+                                {
+                                    ServiceId = new OptionalStruct<int>(),
+                                    ServiceName = new OptionalClass<string>(),
+                                    ServiceType = new OptionalStruct<int>(),
+                                    ServiceProvider = new OptionalClass<string>(),
+                                    PmtPid = new OptionalStruct<int>(),
+                                    ComponentLayout = new ComponentLayoutMap
+                                    {
+                                        DefaultAction = ComponentMapDefaultAction.Options.PASSTHROUGH,
+                                        Layout = new List<ComponentMapping>(),
+                                    },
+                                    ComponentGeneration = new List<ComponentGeneration>(),
+                                    Descriptors = new List<GenericPmtDescriptorEntry>(),
+                                    ScramblingIndex = new OptionalStruct<int>(),
+                                },
+                                InputRedundancy = new InputRedundancy
+                                {
+                                    Mode = InputRedundancySwitchMode.Options.Disabled,
+                                    Backups = new List<Guid>(),
+                                    PreferredSource = new OptionalClass<PreferredSource>(),
+                                    SwitchbackDelay = 10,
+                                    HotStandby = new OptionalClass<HotStandby>(),
+                                },
+                            }));
+                }
             }
             else if (output.Value.OutputSettings.TsWhitelistMode?.MpegMode != null)
             {
@@ -315,11 +323,11 @@ namespace AppearTVX20PlatformConnectionHandler
                 RequestData = SetItemsRequestSerialized(slotId, output),
             };
 
-            //var response = element.SendMessage(request);
-            //if (!response.Success) 
-            //{
-            //    throw new InvalidOperationException($"Failed to update output '{output.Value.Label}' with new source flow: {response.ResponseMessage}");
-            //}
+            var response = element.SendMessage(request);
+            if (!response.Success)
+            {
+                throw new InvalidOperationException($"Failed to update output '{output.Value.Label}' with new source flow: {response.ResponseMessage}");
+            }
         }
 
         private static string GetItemsRequestSerialized(int slot)
