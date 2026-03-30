@@ -98,8 +98,12 @@ namespace AppearTVX20PlatformConnectionHandler
                         continue;
                     }
 
-                    // disconnect destination
-                    updatedConnections.Add(new ConnectionUpdate(destinationEndpoint, isConnected: false));
+                    // check if row update wasn't received in same subscription update
+                    if (!updatedConnections.Any(c => c.DestinationEndpoint.Equals(destinationEndpoint)))
+                    {
+                        // disconnect destination
+                        updatedConnections.Add(new ConnectionUpdate(destinationEndpoint, isConnected: false));
+                    }
                 }
             }
 
