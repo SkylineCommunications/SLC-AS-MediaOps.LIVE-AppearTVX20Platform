@@ -4,7 +4,7 @@
 
 This Automation script acts as a connection handler to integrate elements using the [AppearTV X20 Platform](https://catalog.dataminer.services/details/7bb327a7-0844-4c2b-b5bc-fbfd4e3bc8de) connector with the MediaOps Live solution.
 
-> [!INFO]
+> [!TIP]
 > For general information about connection handler scripts in MediaOps Live, see [Connection Handler Script](https://docs.dataminer.services/solutions/standard_solutions/MediaOps/MediaOps.Live/Mediation_layer/MO_ConnectionHandlerScript.html).
 
 ## Key Features
