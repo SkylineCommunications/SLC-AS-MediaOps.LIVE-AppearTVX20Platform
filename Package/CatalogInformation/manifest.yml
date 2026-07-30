@@ -59,9 +59,6 @@ documentation_url: https://aka.dataminer.services/mediaops-live-connection-handl
 #   The name is required; max 256 characters.
 #   The email and url are optional, and should be in valid email/URL formats.
 owners:
-  - name: ''
-    email: 
-    url: 
 
 # [Optional]
 # Tags that allow you to categorize your Catalog items.
